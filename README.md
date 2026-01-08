@@ -7,17 +7,12 @@ In mixed traffic environments, autonomous decision-making demands accurate multi
 * Absence of explicit modeling for spatiotemporal propagation of potential hazards in risk evaluation
 ## Framework
 To address these issues, our framework for the control logic is as follows：
-
+![thie is the Framework](./Image/Framework.png)
 
 ## Result
 The results of our framework in the following sample cases：
- 1. Turn-Left
-    
- 2. Merge
-    
- 3. Cruise
-    
- 4. Overtake
+Turn-Left、Merge、Cruise、Overtake
+![Turn-Left、Merge、Cruise、Overtake](./Image/Result.png)
 
 ## How to use
 ### Create a new Conda environment
