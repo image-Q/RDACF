@@ -64,6 +64,15 @@ To visualize in Envision (some bugs exist in showing the road map), you need to 
 ```bash
 scl envision start -p 8081
 ```
+## Citation
+```
+@article{huang2023learning,
+  title={Learning Interaction-aware Motion Prediction Model for Decision-making in Autonomous Driving},
+  author={Huang, Zhiyu and Liu, Haochen and Wu, Jingda and Huang, Wenhui and Lv, Chen},
+  journal={arXiv preprint arXiv:2302.03939},
+  year={2023}
+}
+```
 
 
 
