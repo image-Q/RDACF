@@ -1,0 +1,20 @@
+{
+  "costs": {
+    "dist_to_destination": 0.005196368458793145,
+    "steps": 0.77,
+    "dist_to_obstacles": 0.0,
+    "jerk_linear": 1.0,
+    "lane_center_offset": 0.42932143132621275,
+    "speed_limit": 1.1526809493258189e-05,
+    "wrong_way": 0.0,
+    "collisions": 0.0,
+    "off_road": 0.0
+  },
+  "score": {
+    "overall": 0.6870893477569306,
+    "dist_to_destination": 0.005196368458793145,
+    "time": 0.77,
+    "humanness_error": 0.4764404771087376,
+    "rule_violation": 5.7634047466290946e-06
+  }
+}
