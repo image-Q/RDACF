@@ -3,6 +3,7 @@ import math
 import bisect
 import matplotlib.pyplot as plt
 
+
 class CubicSpline1D:
     """
     1D Cubic Spline class
@@ -59,7 +60,7 @@ class CubicSpline1D:
         i = self.__search_index(x)
         dx = x - self.x[i]
         position = self.a[i] + self.b[i] * dx + \
-            self.c[i] * dx ** 2.0 + self.d[i] * dx ** 3.0
+                   self.c[i] * dx ** 2.0 + self.d[i] * dx ** 3.0
 
         return position
 
@@ -135,10 +136,11 @@ class CubicSpline1D:
         """
         B = np.zeros(self.nx)
         for i in range(self.nx - 2):
-            B[i + 1] = 3.0 * (a[i + 2] - a[i + 1]) / h[i + 1]\
-                - 3.0 * (a[i + 1] - a[i]) / h[i]
+            B[i + 1] = 3.0 * (a[i + 2] - a[i + 1]) / h[i + 1] \
+                       - 3.0 * (a[i + 1] - a[i]) / h[i]
 
         return B
+
 
 class CubicSpline2D:
     """
@@ -202,7 +204,7 @@ class CubicSpline2D:
         ddx = self.sx.calc_second_derivative(s)
         dy = self.sy.calc_first_derivative(s)
         ddy = self.sy.calc_second_derivative(s)
-        k = (ddy * dx - ddx * dy) / ((dx ** 2 + dy ** 2)**(3 / 2))
+        k = (ddy * dx - ddx * dy) / ((dx ** 2 + dy ** 2) ** (3 / 2))
 
         return k
 
@@ -225,6 +227,7 @@ class CubicSpline2D:
 
         return yaw
 
+
 class FrenetPath:
     def __init__(self):
         self.t = []
@@ -245,6 +248,7 @@ class FrenetPath:
         self.yaw = []
         self.ds = []
         self.c = []
+
 
 class QuinticPolynomial:
     def __init__(self, xs, vxs, axs, xe, vxe, axe, time):
@@ -316,6 +320,7 @@ class CubicPolynomial:
 
         return xt
 
+
 def generate_target_course(x, y):
     csp = CubicSpline2D(x, y)
     s = np.arange(0, csp.s[-1], 0.1)
@@ -330,10 +335,12 @@ def generate_target_course(x, y):
 
     return rx, ry, ryaw, rk, csp
 
-def wrap_to_pi(theta):
-    return (theta+np.pi) % (2*np.pi) - np.pi
 
-def generate_lon_profile(v_s, a_s, acc): 
+def wrap_to_pi(theta):
+    return (theta + np.pi) % (2 * np.pi) - np.pi
+
+
+def generate_lon_profile(v_s, a_s, acc):
     v_target = np.clip(v_s + acc * 3, 0, 16)
     if acc != 0:
         t_target = round((v_target - v_s) / acc, 3)
@@ -346,23 +353,24 @@ def generate_lon_profile(v_s, a_s, acc):
     speed = [lon_profile.calc_point(t) for t in T]
 
     if len(speed) < 30:
-        speed.extend([speed[-1] for _ in range(30-len(speed))])
-    
+        speed.extend([speed[-1] for _ in range(30 - len(speed))])
+
     speed = np.clip(speed, 0.01, 16)
     displacement = np.cumsum(speed * 0.1)
 
-    return speed, displacement 
+    return speed, displacement
+
 
 def generate_lat_profile(d, v_d):
     d_target = 0
     t_target = np.clip(np.abs(d - d_target) / 1.5, 0.1, 3)
-    T = np.arange(0.1, t_target+0.1, 0.1) 
+    T = np.arange(0.1, t_target + 0.1, 0.1)
     lat_profile = QuinticPolynomial(d, v_d, 0, d_target, 0, 0, t_target)
     displacement = [lat_profile.calc_point(t) for t in T]
     speed = [lat_profile.calc_first_derivative(t) for t in T]
-    
+
     if len(speed) < 30:
-        speed.extend([speed[-1] for _ in range(30-len(speed))])
-        displacement.extend([displacement[-1] for _ in range(30-len(displacement))])
+        speed.extend([speed[-1] for _ in range(30 - len(speed))])
+        displacement.extend([displacement[-1] for _ in range(30 - len(displacement))])
 
     return speed, displacement

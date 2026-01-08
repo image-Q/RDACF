@@ -2,6 +2,7 @@ import torch
 import math
 from torch import nn
 
+
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
         super(PositionalEncoding, self).__init__()
@@ -19,11 +20,13 @@ class PositionalEncoding(nn.Module):
 
         return self.dropout(x)
 
+
 class CrossTransformer(nn.Module):
     def __init__(self):
         super(CrossTransformer, self).__init__()
         self.cross_attention = nn.MultiheadAttention(128, 8, 0.1, batch_first=True)
-        self.ffn = nn.Sequential(nn.LayerNorm(128), nn.Linear(128, 512), nn.ReLU(), nn.Dropout(0.1), nn.Linear(512, 128), nn.LayerNorm(128))
+        self.ffn = nn.Sequential(nn.LayerNorm(128), nn.Linear(128, 512), nn.ReLU(), nn.Dropout(0.1),
+                                 nn.Linear(512, 128), nn.LayerNorm(128))
 
     def forward(self, query, key, mask=None):
         value = key
@@ -33,17 +36,20 @@ class CrossTransformer(nn.Module):
 
         return output
 
+
 class SelfTransformer(nn.Module):
     def __init__(self):
         super(SelfTransformer, self).__init__()
         self.self_attention = nn.MultiheadAttention(128, 8, 0.1, batch_first=True)
-        self.ffn = nn.Sequential(nn.LayerNorm(128), nn.Linear(128, 512), nn.ReLU(), nn.Dropout(0.1), nn.Linear(512, 128), nn.LayerNorm(128))
+        self.ffn = nn.Sequential(nn.LayerNorm(128), nn.Linear(128, 512), nn.ReLU(), nn.Dropout(0.1),
+                                 nn.Linear(512, 128), nn.LayerNorm(128))
 
     def forward(self, input, mask=None):
         attention_output, _ = self.self_attention(input, input, input, key_padding_mask=mask)
         output = self.ffn(attention_output)
 
         return output
+
 
 class AgentEncoder(nn.Module):
     def __init__(self):
@@ -54,11 +60,12 @@ class AgentEncoder(nn.Module):
 
     def forward(self, inputs):
         mask = torch.eq(inputs[:, :, 0], 0)
-        mask[:, -1] = False 
+        mask[:, -1] = False
         time = self.history(self.encode(self.position(inputs)), mask=mask)
         output = time[:, -1]
 
         return output
+
 
 class MapEncoder(nn.Module):
     def __init__(self):
@@ -70,6 +77,7 @@ class MapEncoder(nn.Module):
 
         return output
 
+
 class Agent2Agent(nn.Module):
     def __init__(self):
         super(Agent2Agent, self).__init__()
@@ -78,9 +86,10 @@ class Agent2Agent(nn.Module):
 
     def forward(self, inputs, mask=None):
         output = self.interaction_1(inputs, mask=mask)
-        output = self.interaction_2(inputs+output, mask=mask)
+        output = self.interaction_2(inputs + output, mask=mask)
 
         return output
+
 
 class Agent2Map(nn.Module):
     def __init__(self):
@@ -91,18 +100,19 @@ class Agent2Map(nn.Module):
 
     def forward(self, actor, waypoints, mask):
         query = actor.unsqueeze(1)
-        lane_attention = torch.cat([self.lane(query, self.position_encode(waypoints[:, i]), mask[:, i]) 
+        lane_attention = torch.cat([self.lane(query, self.position_encode(waypoints[:, i]), mask[:, i])
                                     for i in range(waypoints.shape[1])], dim=1)
         map_attention = self.map(query, lane_attention, mask[:, :, 10])
         output = map_attention.squeeze(1)
 
         return output
 
+
 class Decoder(nn.Module):
     def __init__(self, use_interaction):
         super(Decoder, self).__init__()
         self.use_interaction = use_interaction
-        if use_interaction:
+        if use_interaction:  # 默认启用交互
             self.cell = nn.GRUCell(input_size=128, hidden_size=384)
             self.plan_input = nn.Linear(3, 128)
             self.state_input = nn.Linear(3, 128)
@@ -117,7 +127,7 @@ class Decoder(nn.Module):
 
         for t in range(30):
             if self.use_interaction:
-                plan_input = self.plan_input(plan[:, t, :3]) 
+                plan_input = self.plan_input(plan[:, t, :3])
                 state_input = self.state_input(state[:, :3])
                 input = state_input + plan_input * gate
             else:
@@ -131,6 +141,7 @@ class Decoder(nn.Module):
 
         return output
 
+
 class Predictor(nn.Module):
     def __init__(self, use_interaction):
         super(Predictor, self).__init__()
@@ -138,16 +149,16 @@ class Predictor(nn.Module):
         # Ego: (B, T_h, 4)
         # Neighbor: (B, N_n, T_h, 4)
         # Ego map: (B, N_l, 51, 4)
-        # Neighbor map: (B, N_n, N_l, 51, 4) 
+        # Neighbor map: (B, N_n, N_l, 51, 4)
         # Plan: (B, T_f, 4)
-        
-        # agent layer
+
+
         self.ego_net = AgentEncoder()
         self.neighbor_net = AgentEncoder()
 
         # map layer
         self.map_net = MapEncoder()
-        
+
         # attention layers
         self.agent_map = Agent2Map()
         self.agent_agent = Agent2Agent()
@@ -155,16 +166,17 @@ class Predictor(nn.Module):
 
         # decoder layer
         self.decoder = Decoder(use_interaction)
-       
+
     def forward(self, observations, plan):
-        # get inputs and encode them
+
         for key, sub_space in observations.items():
             if key == 'ego_state':
                 ego = sub_space
                 encoded_ego = [self.ego_net(ego)]
             elif key == 'neighbors_state':
                 neighbors = sub_space
-                encoded_neighbors = [self.neighbor_net(neighbors[:, i]) for i in range(neighbors.shape[1])]
+                encoded_neighbors = [self.neighbor_net(neighbors[:, i]) for i in
+                                     range(neighbors.shape[1])]
             elif key == 'ego_map':
                 ego_map = sub_space
                 encoded_ego_map = self.map_net(ego_map)
@@ -173,27 +185,29 @@ class Predictor(nn.Module):
                 encoded_neighbor_map = self.map_net(neighbor_map)
             else:
                 raise KeyError
-                
-        # agent-agent interaction Transformer
+
+
         encoded_actors = torch.stack(encoded_ego + encoded_neighbors, dim=1)
         actor_mask = torch.eq(torch.cat([ego.unsqueeze(1), neighbors], dim=1), 0)[:, :, -1, 0]
         actor_mask[:, 0] = False
         agent_agent = self.agent_agent(encoded_actors, actor_mask)
 
-        # agent-map Transformer
         per_agent_tensor_list = []
         for i in range(neighbors.shape[1]):
             map_mask = torch.eq(neighbor_map[:, i, :, :, -1], 0)
-            agent_map = self.agent_map(agent_agent[:, i+1], encoded_neighbor_map[:, i], map_mask)
-            per_agent_tensor_list.append(torch.cat([agent_map, encoded_neighbors[i], agent_agent[:, i+1]], dim=-1))
+            agent_map = self.agent_map(agent_agent[:, i + 1], encoded_neighbor_map[:, i], map_mask)
+            per_agent_tensor_list.append(torch.cat([agent_map, encoded_neighbors[i], agent_agent[:, i + 1]], dim=-1))
 
         # decode interaction-aware trajectories
         per_agent_prediction_list = []
+
         for i in range(neighbors.shape[1]):
+
             gate = self.gate(torch.cat([encoded_ego[0], encoded_neighbors[i]], dim=-1))
-            predict_traj = self.decoder(per_agent_tensor_list[i], plan, gate, neighbors[:, i, -1])
+
+            predict_traj = self.decoder(per_agent_tensor_list[i], plan, gate, neighbors[:, i, -1])  # (B,30,3)
             per_agent_prediction_list.append(predict_traj)
 
         prediction = torch.stack(per_agent_prediction_list, dim=1)
 
-        return prediction
+        return prediction  # （batch_size,N_neighbors,30,3）

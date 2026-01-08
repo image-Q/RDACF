@@ -9,7 +9,9 @@ from predictor import Predictor
 from observation import observation_adapter
 from smarts.core.utils.episodes import episodes
 
-# build agent
+# ==============================
+# Agent Policy
+# ==============================
 class Policy:
     def __init__(self, model, use_interaction=False, render=False):
         self.predictor = Predictor(use_interaction)
@@ -19,76 +21,136 @@ class Policy:
 
     def act(self, obs, env_input):
         actions = self.planner.plan(obs, env_input)
-        
         return actions
 
-scenarios = [
-    "1_to_2lane_left_turn_c",
-    "3lane_merge_single_agent",
-    "3lane_overtake"
-]
 
+# ==============================
+# Main test
+# ==============================
 def main(args):
     log_path = f"./test_log/{args.name}/"
     os.makedirs(log_path, exist_ok=True)
     success_rate = []
     test_epoch = 0
+
     policy = Policy(args.model_path, use_interaction=args.use_interaction)
 
-    with open(log_path+"test_log.csv", 'w') as csv_file: 
-        writer = csv.writer(csv_file) 
+    with open(os.path.join(log_path, "test_log.csv"), 'w') as csv_file:
+        writer = csv.writer(csv_file)
         writer.writerow(['episodes', 'scenario', 'success', 'safety', 'episode_len', 'success_rate'])
+
+
+    scenarios = [
+        "1_to_2lane_left_turn_c",
+        "3lane_merge_single_agent",
+        "3lane_cruise_single_agent",
+        "3lane_overtake"
+    ]
 
     for scene in scenarios:
         print(f'============={scene}=============')
-        env = gym.make('smarts.env:multi-scenario-v0', scenario=scene, 
-                       headless=not args.envision_gui, sumo_headless=not args.sumo_gui)
+        env = gym.make('smarts.env:multi-scenario-v0',
+                       scenario=scene,
+                       headless=not args.envision_gui,
+                       sumo_headless=not args.sumo_gui)
         observer = observation_adapter(env=env, num_neighbors=5)
-
         eval_episodes = args.episodes
 
-        for episode in episodes(n=eval_episodes):
+        for ep_i, episode in enumerate(episodes(n=eval_episodes)):
             observations = env.reset()
             observer.reset()
             episode.record_scenario(env.scenario_log)
             episode_len = 0
-
             dones = {"__all__": False}
-            while not dones["__all__"]:
-                env_input = observer(observations['Agent_0'])
-                actions = policy.act(observations['Agent_0'], env_input)
 
-                # execute
-                for t in range(5):
-                    action = {'Agent_0': actions[t]}
-                    observations, rewards, dones, infos = env.step(action)
-                    observer(observations['Agent_0'])
-                    episode.record_step(observations, rewards, dones, infos)
-                    episode_len += 1
-                    if dones["__all__"]:
-                        break
-                        
+            csv_ep_path = os.path.join(log_path, f"{scene}_ep{ep_i}.csv")
+            with open(csv_ep_path, "w", newline="") as f:
+                writer = csv.writer(f)
+                header = [
+                    "step", "x", "y", "heading", "speed",
+                    "goal_x", "goal_y", "speed_limit", "lane_center_offset",
+                    "wrong_way", "collision", "off_road"
+                ]
+                for n in range(5):
+                    header += [f"neighbor{n}_x", f"neighbor{n}_y"]
+                writer.writerow(header)
+
+                while not dones["__all__"]:
+                    env_input = observer(observations['Agent_0'])
+                    actions = policy.act(observations['Agent_0'], env_input)
+
+                    for t in range(5):
+                        action = {'Agent_0': actions[t]}
+                        observations, rewards, dones, infos = env.step(action)
+                        observer(observations['Agent_0'])
+                        episode.record_step(observations, rewards, dones, infos)
+                        episode_len += 1
+
+                        obs = observations['Agent_0']
+                        ego = obs.ego_vehicle_state
+
+
+                        x, y = ego.position[:2]
+                        heading = ego.heading
+                        speed = ego.speed
+                        goal = ego.mission.goal.position[:2]
+
+                        speed_limit = obs.waypoint_paths[0][0].speed_limit
+
+
+                        if len(obs.waypoint_paths) > 0 and len(obs.waypoint_paths[0]) > 0:
+                            nearest_wp = obs.waypoint_paths[0][0]
+                            wp_vec = np.array(nearest_wp.pos[:2])
+                            ego_vec = np.array(ego.position[:2])
+                            dist_to_center = np.linalg.norm(ego_vec - wp_vec)
+                            lane_center_offset = dist_to_center / (nearest_wp.lane_width / 2)
+                        else:
+                            lane_center_offset = 0.0
+
+
+                        wrong_way = int(obs.events.wrong_way)
+                        collision = int(len(obs.events.collisions) > 0)
+                        off_road = int(obs.events.off_road)
+
+                        neighbors_xy = []
+                        nghbs = obs.neighborhood_vehicle_states
+                        for n in nghbs[:5]:
+                            neighbors_xy += [n.position[0], n.position[1]]
+                        while len(neighbors_xy) < 10:
+                            neighbors_xy += [0.0, 0.0]
+
+                        row = [
+                            episode_len, x, y, heading, speed,
+                            goal[0], goal[1], speed_limit, lane_center_offset,
+                            wrong_way, collision, off_road
+                        ] + neighbors_xy
+                        writer.writerow(row)
+
+                        if dones["__all__"]:
+                            break
+
             test_epoch += 1
-
-            if episode_len >= 5:
-                with open(log_path+"test_log.csv", 'a') as csv_file: 
-                    writer = csv.writer(csv_file) 
-                    success = observations['Agent_0'].events.reached_goal
-                    safety = any(observations['Agent_0'].events.collisions)
-                    success_rate.append(1 if success else 0)
-                    writer.writerow([test_epoch, scene, success, safety, episode_len, np.mean(success_rate)])
+            success = observations['Agent_0'].events.reached_goal
+            safety = any(observations['Agent_0'].events.collisions)
+            success_rate.append(1 if success else 0)
+            with open(os.path.join(log_path, "test_log.csv"), 'a', newline="") as csv_file:
+                writer = csv.writer(csv_file)
+                writer.writerow([test_epoch, scene, success, safety, episode_len, np.mean(success_rate)])
 
         env.close()
 
 
+# ==============================
+# Entry
+# ==============================
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Testing')
-    parser.add_argument('--name', type=str, help='log name (default: "Test1")', default="Test1")
-    parser.add_argument('--episodes', type=int, help='test episodes (default: 50)', default=50)
-    parser.add_argument('--model_path', type=str, help='path to the saved model')
-    parser.add_argument('--use_interaction', action='store_true', help='whether using interaction-aware prediction', default=False)
-    parser.add_argument('--envision_gui', action='store_true', help='visualize in envision', default=False)
-    parser.add_argument('--sumo_gui', action='store_true', help='visualize in sumo', default=False)
+    parser.add_argument('--name', type=str, default="Test3", help='log folder name')
+    parser.add_argument('--episodes', type=int, default=2, help='test episodes per scenario')
+    parser.add_argument('--model_path', type=str, required=True, help='path to saved model')
+    parser.add_argument('--use_interaction', action='store_true', default=False)
+    parser.add_argument('--envision_gui', action='store_true', default=False)
+    parser.add_argument('--sumo_gui', action='store_true', default=False)
     args = parser.parse_args()
 
     main(args)
