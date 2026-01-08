@@ -73,6 +73,13 @@ scl envision start -p 8081
   year={2023}
 }
 ```
+If you found this repository useful, please consider citing our work:
+```
+@article{RDACF,
+  title={A Closed-Loop Decision-Making Framework for Autonomous Driving via Interactive Prediction and Spatiotemporal Risk Propagation},
+  author={Wan Yu, Fuyun Liu, Ming Chen and Huiqi Liu}
+
+```
 
 
 
