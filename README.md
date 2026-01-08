@@ -4,7 +4,6 @@ A closed-loop decision-making framework integrating trajectory prediction and ad
 In mixed traffic environments, autonomous decision-making demands accurate multi-step interaction prediction and dynamic risk assessment. Existing methods suffer from three key limitations:
 * Neglect of reciprocal influence between ego actions and lack of physical consistency constraints in prediction
 * Absence of explicit modeling for spatiotemporal propagation of potential hazards in risk evaluation
-* Absence of explicit modeling for spatiotemporal propagation of potential hazards in risk evaluation
 ## Framework
 To address these issues, our framework for the control logic is as follows：
 ![thie is the Framework](./Image/Framework.png)
